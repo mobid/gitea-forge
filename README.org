@@ -1,0 +1,6 @@
+This package add Gitea support for forge package.
+
+Installation:
+#+begin_src elisp
+  (package-vc-install "https://github.com/mobid/gitea-forge")
+#+end_src
