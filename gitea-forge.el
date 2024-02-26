@@ -485,8 +485,7 @@
                          (pcase-let ((`(,repo ,topic ,obj) noti))
                            (update-topic repo topic)
                            (closql-with-transaction (forge-db)
-                             (closql-insert (forge-db) obj t)
-                             (forge--zap-repository-cache (forge-get-repository obj)))
+                             (closql-insert (forge-db) obj t))
                            (funcall cb cb (cdr data) (or n (length data))))))
                     (forge--msg nil t t "Pulled %s notifications" (or n 0))
                     (ignore-errors
