@@ -238,7 +238,7 @@
         (oset issue number       .number)
         (oset issue repository   (oref repo id))
         (oset issue state        (pcase-exhaustive .state
-                             ("closed" 'closed)
+                             ("closed" 'completed)
                              ("open" 'open)))
         (oset issue author       .user.username)
         (oset issue title        .title)
@@ -339,7 +339,7 @@
         (oset pullreq state        (if .merged
                                        'merged
                                      (pcase-exhaustive .state
-                                       ("closed" 'closed)
+                                       ("closed" 'completed)
                                        ("open"   'open))))
         (oset pullreq base-repo    "unknown")
         (oset pullreq head-repo    "unknown")
@@ -584,7 +584,7 @@
 
 (cl-defmethod forge--set-topic-state ((repo forge-gitea-repository) topic value)
   (forge--set-topic-field repo topic 'state (cl-ecase value
-                                              (closed "closed")
+                                              (completed "closed")
                                               (open   "open"))))
 
 (cl-defmethod forge--set-topic-review-requests ((_repo forge-gitea-repository) topic reviewers)
