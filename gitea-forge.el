@@ -41,12 +41,10 @@
 
 ;;;; Repository
 
-(cl-defmethod forge--pull ((repo forge-gitea-repository) until &optional callback)
-  (setq until (or until (oref repo updated)))
-  (let ((cb (let ((buf (and (derived-mode-p 'magit-mode)
-                            (current-buffer)))
-                  (dir default-directory)
-                  (selective-p (oref repo selective-p))
+(cl-defmethod forge--pull ((repo forge-gitea-repository) since &optional callback)
+  (cl-assert (not (and since (forge-get-repository repo :tracked?))))
+  (setq since (or since (oref repo updated)))
+  (let ((cb (let ((buf (current-buffer))
                   (val nil))
               (lambda (cb &optional v)
                 (when v (if val (push v val) (setq val v)))
@@ -62,10 +60,10 @@
                     (forge--fetch-milestones repo cb))
                    ((and .has_issues
                          (not (assq 'issues val)))
-                    (forge--fetch-issues repo cb until))
+                    (forge--fetch-issues repo cb since))
                    ((and .has_pull_requests
                          (not (assq 'pullreqs val)))
-                    (forge--fetch-pullreqs repo cb until))
+                    (forge--fetch-pullreqs repo cb since))
                    (t
                     (forge--msg repo t t   "Pulling REPO")
                     (forge--msg repo t nil "Storing REPO")
@@ -76,14 +74,12 @@
                       (forge--update-milestones repo .milestones)
                       (dolist (v .issues)   (forge--update-issue repo v))
                       (dolist (v .pullreqs) (forge--update-pullreq repo v))
-                      (oset repo sparse-p nil))
+                      (oset repo condition :tracked))
                     (forge--msg repo t t "Storing REPO")
-
-                    (forge--msg repo t t   "Storing REPO")
                     (cond
-                     (selective-p)
+                     ((oref repo selective-p))
                      (callback (funcall callback))
-                     (t (forge--git-fetch buf dir repo))))))))))
+                     ((forge--maybe-git-fetch repo buf))))))))))
     (funcall cb cb)))
 
 (cl-defmethod forge--fetch-repository ((repo forge-gitea-repository) callback)
@@ -199,18 +195,18 @@
         (forge--msg nil nil t "Pulling %s %s/%s" typ i cnt)
         (funcall callback callback (cons field (nreverse val)))))))
 
-(cl-defmethod forge--fetch-issues ((repo forge-gitea-repository) callback until)
+(cl-defmethod forge--fetch-issues ((repo forge-gitea-repository) callback since)
   (let ((cb (forge--gtea-fetch-topics-cb 'issues repo callback)))
     (forge--msg repo t nil "Pulling REPO issues")
     (forge--gtea-get repo "repos/:owner/:repo/issues"
       `((limit . ,forge--gtea-batch-size)
         (type . "issues")
         (state . "all")
-        ,@(and-let* ((after (forge--topics-until repo until 'issue)))
+        ,@(and-let* ((after (or since (oref repo issues-until))))
             `((updated_after . ,after))))
       :unpaginate t
       :callback (lambda (value _headers _status _req)
-                  (if until
+                  (if since
                       (funcall cb cb value)
                     (funcall callback callback (cons 'issues value)))))))
 
@@ -294,20 +290,20 @@
 
 ;;;; Pull requests
 
-(cl-defmethod forge--fetch-pullreqs ((repo forge-gitea-repository) callback until)
+(cl-defmethod forge--fetch-pullreqs ((repo forge-gitea-repository) callback since)
   (let ((cb (forge--gtea-fetch-topics-cb 'pullreqs repo callback))
-        (until (and until (date-to-time until))))
+        (since (and since (date-to-time since))))
     (forge--msg repo t nil "Pulling REPO PRs")
     (forge--gtea-get* repo "repos/:owner/:repo/pulls"
       `((limit . ,forge--gtea-batch-size)
         (sort . "recentupdate"))
       :callback (lambda (value _headers _status _req)
-                  (if until
+                  (if since
                       (funcall cb cb value)
                     (funcall callback callback (cons 'pullreqs value))))
       :while (lambda (res)
                (let-alist res
-                 (or (not until) (time-less-p until (date-to-time .updated_at))))))))
+                 (or (not since) (time-less-p since (date-to-time .updated_at))))))))
 
 (cl-defmethod forge--fetch-pullreq-posts ((repo forge-gitea-repository) cur cb)
   (let-alist (car cur)
