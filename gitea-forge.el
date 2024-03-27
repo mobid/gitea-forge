@@ -343,7 +343,7 @@
                                        ("open"   'open))))
         (oset pullreq base-repo    "unknown")
         (oset pullreq head-repo    "unknown")
-        (oset pullreq draft-p      nil)
+        (oset pullreq draft-p      (gitea-forge-is-draft? .title))
         (oset pullreq cross-repo-p nil)
         (oset pullreq base-ref     .base.ref)
         (oset pullreq base-rev     .merge_base)
@@ -491,7 +491,8 @@
                       (funcall callback))))))
         (funcall cb cb (forge--gtea-get nil "notifications"))))))
 
-;;; Mutations
+;;; Mutations:
+
 (cl-defmethod forge--submit-create-pullreq ((_ forge-gitea-repository) repo)
   (let-alist (forge--topic-parse-buffer)
     (when (and .yaml (local-variable-p 'forge-buffer-draft-p))
@@ -609,6 +610,25 @@
               (when (cl-member login logins :test 'string=)
                 (list id))))
           (oref (forge-get-repository nil) assignees)))
+;;;; Drafts:
+;; Drafts are implemented as WIP word in title.
+
+(defun gitea-forge-is-draft? (title)
+  "Topic is draft if TITLE first word include \"WIP\"."
+  (string-match-p "WIP" (car (string-split title))))
+
+(cl-defmethod forge--set-topic-draft
+  ((repo forge-gitea-repository) topic draft-p)
+  (let ((title (oref topic title)))
+    (cond
+     ((eq draft-p (gitea-forge-is-draft? title)) 'pass)
+     (draft-p (forge--set-topic-title
+               repo topic
+               (concat "[WIP] " title)))
+     (t (forge--set-topic-title
+         repo topic
+         (string-trim
+          (string-join (cdr (seq-drop-while #'string-empty-p (string-split title " "))) " ")))))))
 
 ;;;; Templates:
 
@@ -849,7 +869,11 @@ is met."
             (forge--pull-topic repo topic)
           (forge-pull))))))
 
-
+(defun forge-topic-toggle-draft/gitea-fix ()
+  "Trigger `forge--set-topic-draft' event, when change draft state."
+  (when-let ((pullreq (forge-current-pullreq)))
+    (forge--set-topic-draft (forge-get-repository :tracked) pullreq (oref pullreq draft-p))))
+(add-function :after (symbol-function 'forge-topic-toggle-draft) 'forge-topic-toggle-draft/gitea-fix)
 
 (provide 'gitea-forge)
 
