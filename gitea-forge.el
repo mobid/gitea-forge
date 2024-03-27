@@ -273,18 +273,23 @@
         issue))))
 
 (cl-defmethod forge--pull-topic ((repo forge-gitea-repository)
-                                 (topic forge-topic))
+                                 (topic forge-topic)
+                                 &key callback _errorback)
   (condition-case _
       (let ((data (forge--gtea-get topic "repos/:owner/:repo/pulls/:number"))
             (cb (forge--gtea-fetch-topics-cb 'pullreqs repo
                                              (lambda (_ data)
-                                               (forge--update-pullreq repo (cadr data))))))
+                                               (forge--update-pullreq repo (cadr data))
+                                               (when callback
+                                                 (funcall callback))))))
         (funcall cb cb (list data)))
     (error
      (let ((data (forge--gtea-get topic "repos/:owner/:repo/issues/:number"))
            (cb (forge--gtea-fetch-topics-cb 'issues repo
                                             (lambda (_ data)
-                                              (forge--update-issue repo (cadr data))))))
+                                              (forge--update-issue repo (cadr data))
+                                              (when callback
+                                                 (funcall callback))))))
        (funcall cb cb (list data))))))
 
 ;;;; Pull requests
@@ -353,8 +358,9 @@
         (forge--set-id-slot repo pullreq 'assignees .assignees)
 
         (forge--set-id-slot repo pullreq 'review-requests
-                            (mapcar (lambda (review)
-                                      (alist-get 'user review))
+                            (mapcan (lambda (review)
+                                      (when (string= "REQUEST_REVIEW" (alist-get 'state review))
+                                        (list (alist-get 'user review))))
                                     .reviews))
         (let ((reviews (mapcan (lambda (review)
                                  (unless (string-empty-p (alist-get 'body review))
@@ -545,7 +551,7 @@
   (magit-refresh))
 
 (cl-defmethod forge--set-topic-labels ((repo forge-gitea-repository) topic labels)
-  (let ((callback (forge--set-field-callback)))
+  (let ((cb (forge--set-field-callback topic)))
     (forge--fetch-labels
      repo (lambda (_cb data)
             (let ((ids (mapcan (lambda (label)
@@ -554,8 +560,8 @@
                                      (list .id))))
                                (cdr data))))
               (forge--gtea-put topic "repos/:owner/:repo/issues/:number/labels"
-                `((labels . ,ids))
-                :callback callback))))))
+                `((labels . ,(or ids [])))
+                :callback cb))))))
 
 (cl-defmethod forge--set-topic-field
   ((_repo forge-gitea-repository) topic field value)
@@ -564,15 +570,16 @@
       (forge-pullreq "repos/:owner/:repo/pulls/:number")
       (forge-issue   "repos/:owner/:repo/issues/:number"))
     `((,field . ,value))
-    :callback (forge--set-field-callback)))
+    :callback (forge--set-field-callback topic)))
 
 (cl-defmethod forge--set-topic-milestone ((repo forge-gitea-repository) topic milestone)
-  (forge--set-topic-field repo topic 'milestone (caar (forge-sql [:select [number]
-                                                                          :from milestone
-                                                                          :where (and (= repository $s1)
-                                                                                      (= title $s2))]
-                                                                 (oref repo id)
-                                                                 milestone))))
+  (forge--set-topic-field repo topic 'milestone (or (caar (forge-sql [:select [number]
+                                                                              :from milestone
+                                                                              :where (and (= repository $s1)
+                                                                                          (= title $s2))]
+                                                                     (oref repo id)
+                                                                     milestone))
+                                                    -1)))
 
 (cl-defmethod forge--set-topic-title ((repo forge-gitea-repository) topic title)
   (forge--set-topic-field repo topic 'title title))
@@ -590,11 +597,10 @@
     (when-let ((remove (cl-set-difference value reviewers :test #'equal)))
       (forge--gtea-delete topic "repos/:owner/:repo/pulls/:number/requested_reviewers"
         `((reviewers . ,remove)))))
-  ;; (oset topic review-requests (forge--gitea-map-logins reviewers))
   (forge-pull))
 
 (cl-defmethod forge--set-topic-assignees ((repo forge-gitea-repository) topic assignees)
-  (forge--set-topic-field repo topic 'assignees assignees))
+  (forge--set-topic-field repo topic 'assignees (or assignees [])))
 
 (defun forge--gitea-map-logins (logins)
   (mapcan (lambda (user)
