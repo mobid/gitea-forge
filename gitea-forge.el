@@ -650,31 +650,11 @@
 
 (cl-defmethod forge--merge-pullreq ((_repo forge-gitea-repository)
                                     topic hash method)
-  (cl-labels ((merge-pr (msg)
-                (forge--gtea-post topic "repos/:owner/:repo/pulls/:number/merge"
-                  `((delete_branch_after_merge . t)
-                    (MergeMessageField . ,msg)
-                    (do . ,(symbol-name method))
-                    ,@(and hash `((head_commit_id . ,hash))))
-                  :callback (forge--post-submit-gitea-callback)
-                  :errorback (forge--post-submit-errorback))
-                (setq merged t)))
-    (if (= 1 (car (magit-rev-diff-count (oref topic head-rev) (oref topic base-rev))))
-        (let* ((txt (forge--pullreq-commit-msg hash))
-               (title (oref topic title))
-               (buf (forge--prepare-post-buffer
-                     "merge-message")))
-          (when buf
-            (with-current-buffer buf
-              (erase-buffer)
-              (insert (format "# %s\n\n%s" title txt))
-              (setq forge--buffer-post-object topic)
-              (setq forge--submit-post-function
-                    (lambda (repo topic)
-                      (let-alist (forge--topic-parse-buffer)
-                        (merge-pr .body)))))
-            (forge--display-post-buffer buf)))
-      (merge-pr ""))))
+  (forge--gtea-post topic "repos/:owner/:repo/pulls/:number/merge"
+    `((delete_branch_after_merge . t)
+      (MergeMessageField . ,msg)
+      (do . ,(symbol-name method))
+      ,@(and hash `((head_commit_id . ,hash))))))
 
 ;;;; Approve
 
