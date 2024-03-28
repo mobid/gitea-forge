@@ -333,13 +333,13 @@
         (oset pullreq title        .title)
         (oset pullreq created      .created_at)
         (oset pullreq updated      .updated_at)
-        (oset pullreq merged       .merged)
-        (oset pullreq closed       (or .merged (string= .state "closed")))
+        (oset pullreq merged       .merged_at)
+        (oset pullreq closed       .closed_at)
         (oset pullreq body         (forge--sanitize-string .body))
         (oset pullreq state        (if .merged
                                        'merged
                                      (pcase-exhaustive .state
-                                       ("closed" 'completed)
+                                       ("closed" 'rejected)
                                        ("open"   'open))))
         (oset pullreq base-repo    "unknown")
         (oset pullreq head-repo    "unknown")
@@ -587,6 +587,7 @@
 
 (cl-defmethod forge--set-topic-state ((repo forge-gitea-repository) topic value)
   (forge--set-topic-field repo topic 'state (cl-ecase value
+                                              (rejected "closed")
                                               (completed "closed")
                                               (open   "open"))))
 
