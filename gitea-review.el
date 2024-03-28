@@ -40,6 +40,7 @@
 ;;; Code:
 
 (require 'gitea-forge)
+(require 'deferred)
 
 ;; TODO - If comment is placed over other comment, it take bottom line for reference.
 ;; TODO - Maybe, narrow comments to review.
@@ -106,7 +107,6 @@ This function is deferred."
         (forge--gtea-get pullreq (format "repos/:owner/:repo/pulls/:number/reviews/%s/comments" .id)
           nil
           :callback (lambda (value &rest _args)
-                      (setq VAL value)
                       (deferred:callback-post d value)))))
     d))
 
@@ -402,8 +402,8 @@ If line has prefix \"-\" it is old position otherwise it is new position.
 This code is similar to `diff-split-hunk'."
   (save-excursion
     (let ((use-old (gitea-review--hunk-old?))
-          (pos (point))
-          (start (diff-beginning-of-hunk)))
+          (pos (point)))
+      (diff-beginning-of-hunk)
       (unless (looking-at diff-hunk-header-re-unified)
         (error "Diff is not in unified format"))
       (forward-line 1)
@@ -445,7 +445,7 @@ This code is similar to `diff-split-hunk'."
         (range (get-text-property (point) 'comment-range)))
     (unless comment
       (error "No comment at point"))
-    (unless (find comment (gitea-review-comments))
+    (unless (cl-find comment (gitea-review-comments))
       (error "No pending comment"))
     (let ((inhibit-read-only t))
       (setq gitea-review-comments (remove comment gitea-review-comments))
@@ -468,7 +468,7 @@ This code is similar to `diff-split-hunk'."
     (unless (and c (gitea-comment-new c))
       (error "Only unsaved comments can be edited"))
     (setf (gitea-comment-body c) (gitea-review-read "Edit:" (gitea-comment-body c)))
-    (gitea-review-delete-comment t)
+    (gitea-review-delete-comment)
     (gitea-review--place-comment c)
     (setcdr (last gitea-review-comments) (list c))
     (gitea-review--sort-comments)))
