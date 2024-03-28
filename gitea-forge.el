@@ -221,14 +221,13 @@
 (cl-defmethod forge--update-issue ((repo forge-gitea-repository) data)
   (closql-with-transaction (forge-db)
     (let-alist data
-      (let* ((issue-id (forge--object-id 'forge-issue repo .id))
+      (let* ((issue-id (forge--object-id 'forge-issue repo .number))
              (issue (or (forge-get-issue repo .number)
                         (closql-insert
                          (forge-db)
                          (forge-issue :id           issue-id
                                       :repository   (oref repo id)
                                       :number       .number)))))
-        (oset issue id           issue-id)
         (oset issue slug         (format "#%s" .number))
         (oset issue their-id     .id)
         (oset issue number       .number)
