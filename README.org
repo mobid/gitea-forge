@@ -1,4 +1,4 @@
-This package add Gitea support for forge package.
+This package add Gitea (and Codeberg) support for forge package.
 
 Installation:
 #+begin_src elisp

@@ -97,7 +97,7 @@
     (oset repo created        .created_at)
     (oset repo updated        .updated_at)
     (oset repo pushed         nil)
-    (oset repo parent         .parent)
+    (oset repo parent         .parent.full_name)
     (oset repo description    .description)
     (oset repo homepage       .html_url)
     (oset repo default-branch .default_branch)
@@ -854,8 +854,16 @@ is met."
                :noerror noerror :reader reader
                :callback callback :errorback errorback))
 
+;;; Forks:
+(cl-defmethod forge--fork-repository ((repo forge-gitea-repository) fork)
+  (with-slots (owner name) repo
+    (forge--gtea-post repo
+      (format "/repos/%s/%s/forks" owner name)
+      (and (not (equal fork (ghub--username (ghub--host nil))))
+           `((organization . ,fork))))))
 
-;;; Forge fix for gitea
+;;; Forge hacks:
+
 (add-function :before-until (symbol-function 'forge-pull-notifications)
               (defun forge--pull-notifications--gitea ()
                 (if-let ((repo (forge-get-repository 'maybe)))
