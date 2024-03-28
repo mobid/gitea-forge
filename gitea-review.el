@@ -419,24 +419,24 @@ This code is similar to `diff-split-hunk'."
   "Place new comment in current position."
   (interactive)
   (save-excursion
-    (re-search-backward "^\\(-\\|\\+\\| \\)"))
-  (let ((old? (gitea-review--hunk-old?))
-        (file (gitea-review--hunk-file))
-        (line (gitea-review--hunk-line))
-        (body (gitea-review-read "Comment: "))
-        (date (format-time-string "%FT%T%z")))
-    (let ((comment (make-gitea-comment :author user-full-name
-                                       :created date
-                                       :updated date
-                                       :body body
-                                       :file file
-                                       :old-line (and old? line)
-                                       :new-line (and (not old?) line)
-                                       :new t)))
-      (emacs-lock-mode +1)
-      (gitea-review--place-comment comment)
-      (setcdr (last gitea-review-comments) (list comment))
-      (gitea-review-update-header))))
+    (re-search-backward "^\\(-\\|\\+\\| \\)")
+    (let ((old? (gitea-review--hunk-old?))
+          (file (gitea-review--hunk-file))
+          (line (gitea-review--hunk-line))
+          (body (gitea-review-read "Comment: "))
+          (date (format-time-string "%FT%T%z")))
+      (let ((comment (make-gitea-comment :author user-full-name
+                                         :created date
+                                         :updated date
+                                         :body body
+                                         :file file
+                                         :old-line (and old? line)
+                                         :new-line (and (not old?) line)
+                                         :new t)))
+        (emacs-lock-mode +1)
+        (gitea-review--place-comment comment)
+        (setq gitea-review-comments (append gitea-review-comments (list comment)))
+        (gitea-review-update-header)))))
 
 (defun gitea-review-delete-comment ()
   "Delete (submitted) comment at point."
@@ -470,7 +470,7 @@ This code is similar to `diff-split-hunk'."
     (setf (gitea-comment-body c) (gitea-review-read "Edit:" (gitea-comment-body c)))
     (gitea-review-delete-comment)
     (gitea-review--place-comment c)
-    (setcdr (last gitea-review-comments) (list c))
+    (setq gitea-review-comments (append gitea-review-comments (list c)))
     (gitea-review--sort-comments)))
 
 ;;; Submit pull request:
