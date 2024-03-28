@@ -45,7 +45,8 @@
   (cl-assert (not (and since (forge-get-repository repo :tracked?))))
   (setq since (or since (oref repo updated)))
   (let ((cb (let ((buf (current-buffer))
-                  (val nil))
+                  (val nil)
+                  (initial-pull (not (oref repo pullreqs-until))))
               (lambda (cb &optional v)
                 (when v (if val (push v val) (setq val v)))
                 (let-alist val
@@ -72,8 +73,8 @@
                       (forge--update-assignees  repo .assignees)
                       (forge--update-labels     repo .labels)
                       (forge--update-milestones repo .milestones)
-                      (dolist (v .issues)   (forge--update-issue repo v))
-                      (dolist (v .pullreqs) (forge--update-pullreq repo v))
+                      (dolist (v .issues)   (forge--update-issue repo v 'bump initial-pull))
+                      (dolist (v .pullreqs) (forge--update-pullreq repo v 'bump initial-pull))
                       (oset repo condition :tracked))
                     (forge--msg repo t t "Storing REPO")
                     (cond
@@ -218,7 +219,7 @@
                   (setf (alist-get 'notes (car cur)) value)
                   (funcall cb cb)))))
 
-(cl-defmethod forge--update-issue ((repo forge-gitea-repository) data)
+(cl-defmethod forge--update-issue ((repo forge-gitea-repository) data &optional bump initial-pull)
   (closql-with-transaction (forge-db)
     (let-alist data
       (let* ((issue-id (forge--object-id 'forge-issue repo .number))
@@ -233,8 +234,8 @@
         (oset issue number       .number)
         (oset issue repository   (oref repo id))
         (oset issue state        (pcase-exhaustive .state
-                             ("closed" 'completed)
-                             ("open" 'open)))
+                                   ("closed" 'completed)
+                                   ("open" 'open)))
         (oset issue author       .user.username)
         (oset issue title        .title)
         (oset issue created      .created_at)
@@ -270,6 +271,7 @@
                                 "\n```\n--\n"
                                 body))))
              t)))
+        (forge--update-status repo issue data bump initial-pull)
         issue))))
 
 (cl-defmethod forge--pull-topic ((repo forge-gitea-repository)
@@ -317,7 +319,7 @@
                   (setf (alist-get 'notes (car cur)) value)
                   (funcall cb cb)))))
 
-(cl-defmethod forge--update-pullreq ((repo forge-gitea-repository) data)
+(cl-defmethod forge--update-pullreq ((repo forge-gitea-repository) data &optional bump initial-pull)
   (closql-with-transaction (forge-db)
     (let-alist data
       (let* ((pullreq-id (forge--object-id 'forge-pullreq repo .number))
@@ -389,6 +391,7 @@
                                   "\n```\n--\n"
                                   body))))
                t))))
+        (forge--update-status repo pullreq data bump initial-pull)
         pullreq))))
 
 ;;;; Reviews:
@@ -630,6 +633,24 @@
          repo topic
          (string-trim
           (string-join (cdr (seq-drop-while #'string-empty-p (string-split title " "))) " ")))))))
+
+(cl-defmethod forge--update-status ((repo forge-gitea-repository)
+                                    topic data bump initial-pull)
+  (let-alist data
+    (let ((updated (or .updated_at .created_at))
+          (current-status (oref topic status)))
+      (cond (initial-pull
+             (oset topic status 'done))
+            ((null current-status)
+             (oset topic status 'unread))
+            ((string> updated (oref topic updated))
+             (oset topic status 'pending)))
+      (oset topic updated updated)
+      (when bump
+        (let* ((slot (if (forge-issue-p topic) 'issues-until 'pullreqs-until))
+               (until (eieio-oref repo slot)))
+          (when (or (not until) (string> updated until))
+            (eieio-oset repo slot updated)))))))
 
 ;;;; Templates:
 
