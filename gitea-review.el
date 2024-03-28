@@ -265,7 +265,7 @@ proper comment threads will be created (in chronological order)."
   "Parse hunk description at point.
 
 Result is cons (old line, new line)"
-  (when (looking-at "@@ -\\([0-9]+\\),[0-9]+ \\+\\([0-9]+\\),[0-9]+ @@")
+  (when (looking-at "@@ -\\([0-9]+\\)\\(?:,[0-9]+\\)? \\+\\([0-9]+\\)\\(?:,[0-9]+\\)? @@")
     (cons (string-to-number (match-string 1))
           (string-to-number (match-string 2)))))
 
