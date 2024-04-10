@@ -436,7 +436,7 @@
                     (list githost
                           .repository.owner.login
                           .repository.name)
-                    nil 'create))
+                    nil :insert!))
            (repoid (oref repo id))
            (id     (forge--object-id repoid .id))
            (cb (lambda (_ pullreq)
@@ -505,7 +505,7 @@
                   (magit-split-branch-name forge--buffer-base-branch))
                  (`(,head-remote . ,head-branch)
                   (magit-split-branch-name forge--buffer-head-branch))
-                 (head-repo (forge-get-repository 'stub head-remote))
+                 (head-repo (forge-get-repository :stub head-remote))
                  (url-mime-accept-string
                   ;; Support draft pull-requests.
                   "application/vnd.github.shadow-cat-preview+json"))
@@ -866,7 +866,7 @@ is met."
 
 (add-function :before-until (symbol-function 'forge-pull-notifications)
               (defun forge--pull-notifications--gitea ()
-                (if-let ((repo (forge-get-repository 'maybe)))
+                (if-let ((repo (forge-get-repository :stub?)))
                     (let ((class (eieio-object-class repo)))
                       (when (eq class 'forge-gitea-repository)
                         (forge--pull-notifications class (oref repo githost))
@@ -902,7 +902,7 @@ is met."
 (defun forge-topic-toggle-draft/gitea-fix ()
   "Trigger `forge--set-topic-draft' event, when change draft state."
   (when-let ((pullreq (forge-current-pullreq)))
-    (forge--set-topic-draft (forge-get-repository :tracked) pullreq (oref pullreq draft-p))))
+    (forge--set-topic-draft (forge-get-repository :tracked?) pullreq (oref pullreq draft-p))))
 (add-function :after (symbol-function 'forge-topic-toggle-draft) 'forge-topic-toggle-draft/gitea-fix)
 
 (provide 'gitea-forge)
