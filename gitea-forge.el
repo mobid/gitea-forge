@@ -717,7 +717,7 @@ is met."
   (let* ((result '())
          (url (if obj (forge--format-resource obj resource) resource))
          (cb (lambda (cb)
-               (forge--gtea-get nil url params
+               (forge--gtea-get obj url params
                  :callback
                  (lambda (value headers status req)
                    (while (and value
