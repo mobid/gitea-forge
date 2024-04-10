@@ -699,7 +699,8 @@
                                     topic hash method)
   (forge--gtea-post topic "repos/:owner/:repo/pulls/:number/merge"
     `((delete_branch_after_merge . t)
-      (MergeMessageField . ,msg)
+      ,@(when (eq 'squash method)
+          `((MergeMessageField . ,(oref topic title))))
       (do . ,(symbol-name method))
       ,@(and hash `((head_commit_id . ,hash))))))
 
