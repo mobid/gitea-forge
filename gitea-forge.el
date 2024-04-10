@@ -41,7 +41,7 @@
 
 ;;;; Repository
 
-(cl-defmethod forge--pull ((repo forge-gitea-repository) since &optional callback)
+(cl-defmethod forge--pull ((repo forge-gitea-repository) &optional callback since)
   (cl-assert (not (and since (forge-get-repository repo :tracked?))))
   (setq since (or since (oref repo updated)))
   (let ((cb (let ((buf (current-buffer))
