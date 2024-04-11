@@ -534,9 +534,9 @@
     :callback  (forge--post-submit-gitea-callback)
     :errorback (forge--post-submit-errorback)))
 
-(cl-defmethod forge--submit-edit-post ((_ forge-gitea-repository) post)
+(cl-defmethod forge--submit-edit-post ((repo forge-gitea-repository) post)
   (forge--gtea-patch
-    nil
+    repo
     (cl-typecase post
       (forge-pullreq (forge--format-resource post "repos/:owner/:repo/pulls/:number"))
       (forge-issue   (forge--format-resource post "repos/:owner/:repo/issues/:number"))
