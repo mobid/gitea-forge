@@ -1,6 +1,19 @@
 This package add Gitea (and Codeberg) support for forge package.
 
-Installation:
+* Installation:
 #+begin_src elisp
   (package-vc-install "https://github.com/mobid/gitea-forge")
+#+end_src
+
+* Authentication
+Forge will ask you about username, after that, put access token into
+your =~/.authinfo.gpg=
+#+begin_src authinfo
+machine git.example.com/api/v1 login username^forge password asdf1234
+#+end_src
+
+* Self hosted Gitea
+You need to register self hosted Gitea into ~forge-alist~ variable.
+#+begin_src elisp
+(add-to-list 'forge-alist '("git.example.com" "git.example.com/api/v1" "git.example.com" forge-gitea-repository))
 #+end_src
