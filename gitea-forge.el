@@ -709,7 +709,7 @@
 (defun forge-gitea-approve (pullreq)
   "Approve pullrequest.  Currently done only for gitea hosting."
   (interactive
-   (list (forge-read-pullreq "Approve pull-request" t)))
+   (list (forge-read-pullreq "Approve pull-request")))
   (let* ((pullreq (forge-get-pullreq pullreq))
          (hash (magit-rev-hash
                 (concat "origin/"
@@ -724,7 +724,7 @@
         (insert (format "# %s" (oref pullreq title)))
         (setq forge--buffer-post-object pullreq)
         (setq forge--submit-post-function
-              (lambda (repo topic)
+              (lambda (_repo _topic)
                 (let-alist (forge--topic-parse-buffer)
                   (print  `((body . ,.body)
                             ;; (comments . ,nil)
