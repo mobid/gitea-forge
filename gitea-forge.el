@@ -456,43 +456,43 @@
                     :type         type
                     :topic        (forge--object-id 'forge-pullreq repo (cdr (assoc 'number pullreq)))
                     :url          .subject.url))))))
-      (forge--gtea-get nil (format "repos/%s/%s/%s" .repository.full_name url-part number)
+      (forge--gtea-get repo (format "repos/%s/%s/%s" .repository.full_name url-part number)
         nil
         :callback (lambda (pull &rest _args)
                     (funcall cb cb pull))))))
 
-(setq last-notifications nil)
-
 (cl-defmethod forge--pull-notifications ((repo (subclass forge-gitea-repository)) githost &optional callback)
-  (cl-flet ((update-topic (repo data)
-              (let* ((url (alist-get 'url data))
-                     (field (if (string-match "/pulls/[0-9]+$" url) 'pullreqs 'topics))
-                     (cb (lambda (_ data)
-                           (if (eq field 'pullreqs)
-                               (forge--update-pullreq repo (cadr data))
-                             (forge--update-issue repo (cadr data)))))
-                     (cb (forge--gtea-fetch-topics-cb 'pullreqs repo cb)))
-                (funcall cb cb (list data)))))
-    (let ((spec (assoc githost forge-alist)))
-      (unless spec
-        (error "No entry for %S in forge-alist" githost))
-      (forge--msg nil t nil "Pulling notifications")
-      (let ((cb (lambda (cb data &optional n)
-                  (if data
-                      (forge--gtea-massage-notification
-                       (car data) repo githost
-                       (lambda (noti)
-                         (pcase-let ((`(,repo ,topic ,obj) noti))
-                           (update-topic repo topic)
-                           (closql-with-transaction (forge-db)
-                             (closql-insert (forge-db) obj t))
-                           (funcall cb cb (cdr data) (or n (length data))))))
-                    (forge--msg nil t t "Pulled %s notifications" (or n 0))
-                    (ignore-errors
-                      (forge--gtea-put nil "notifications")) ; mark as read
-                    (when callback
-                      (funcall callback))))))
-        (funcall cb cb (forge--gtea-get nil "notifications"))))))
+  (let ((apihost (cadr (forge--get-forge-host githost))))
+    (cl-flet ((update-topic (repo data)
+                (let* ((url (alist-get 'url data))
+                       (field (if (string-match "/pulls/[0-9]+$" url) 'pullreqs 'topics))
+                       (cb (lambda (_ data)
+                             (if (eq field 'pullreqs)
+                                 (forge--update-pullreq repo (cadr data))
+                               (forge--update-issue repo (cadr data)))))
+                       (cb (forge--gtea-fetch-topics-cb 'pullreqs repo cb)))
+                  (funcall cb cb (list data)))))
+      (let ((spec (assoc githost forge-alist)))
+        (unless spec
+          (error "No entry for %S in forge-alist" githost))
+        (forge--msg nil t nil "Pulling notifications")
+        (let ((cb (lambda (cb data &optional n)
+                    (if data
+                        (forge--gtea-massage-notification
+                         (car data) repo githost
+                         (lambda (noti)
+                           (pcase-let ((`(,repo ,topic ,obj) noti))
+                             (update-topic repo topic)
+                             (closql-with-transaction (forge-db)
+                               (closql-insert (forge-db) obj t))
+                             (funcall cb cb (cdr data) (or n (length data))))))
+                      (forge--msg nil t t "Pulled %s notifications" (or n 0))
+                      (ignore-errors
+                        ;; mark as read
+                        (forge--gtea-put nil "notifications" nil :host apihost))
+                      (when callback
+                        (funcall callback))))))
+          (funcall cb cb (forge--gtea-get nil "notifications" nil :host apihost)))))))
 
 ;;; Mutations:
 
