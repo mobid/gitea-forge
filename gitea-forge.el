@@ -704,41 +704,6 @@
       (do . ,(symbol-name method))
       ,@(and hash `((head_commit_id . ,hash))))))
 
-;;;; Approve
-
-(defun forge-gitea-approve (pullreq)
-  "Approve pullrequest.  Currently done only for gitea hosting."
-  (interactive
-   (list (forge-read-pullreq "Approve pull-request")))
-  (let* ((pullreq (forge-get-pullreq pullreq))
-         (hash (magit-rev-hash
-                (concat "origin/"
-                        (forge--pullreq-branch-internal pullreq))))
-         (buf (forge--prepare-post-buffer
-               "merge-message")))
-    (unless hash
-      (error "Branch is missing"))
-    (when buf
-      (with-current-buffer buf
-        (erase-buffer)
-        (insert (format "# %s" (oref pullreq title)))
-        (setq forge--buffer-post-object pullreq)
-        (setq forge--submit-post-function
-              (lambda (_repo _topic)
-                (let-alist (forge--topic-parse-buffer)
-                  (print  `((body . ,.body)
-                            ;; (comments . ,nil)
-                            (event . "APPROVED")
-                            (commit_id . ,hash)))
-                  (forge--gtea-post pullreq "repos/:owner/:repo/pulls/:number/reviews"
-                    `((body . ,.body)
-                      ;; (comments . ,nil)
-                      (event . "APPROVED")
-                      (commit_id . ,hash))
-                    :callback (forge--post-submit-gitea-callback)
-                    :errorback (forge--post-submit-errorback))))))
-      (forge--display-post-buffer buf))))
-
 ;;; Wrappers
 
 (cl-defun forge--gtea-get* (obj resource
