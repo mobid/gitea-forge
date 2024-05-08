@@ -275,6 +275,11 @@
         issue))))
 
 (cl-defmethod forge--pull-topic ((repo forge-gitea-repository)
+                                 (number number))
+  (let ((id (oref repo id)))
+    (forge--pull-topic repo (forge-issue :repository id :number number))))
+
+(cl-defmethod forge--pull-topic ((repo forge-gitea-repository)
                                  (topic forge-topic)
                                  &key callback _errorback)
   (condition-case _
@@ -870,6 +875,11 @@ is met."
   (when-let ((pullreq (forge-current-pullreq)))
     (forge--set-topic-draft (forge-get-repository :tracked?) pullreq state)))
 (add-function :after (symbol-function 'forge-topic-toggle-draft) 'forge-topic-toggle-draft/gitea-fix)
+
+(defun forge--get-github-repository/gitea-fix ()
+  "Enable this condition for fetching single topic."
+  (forge-gitea-repository-p (forge-get-repository :stub?)))
+(add-function :before-until (symbol-function 'forge--get-github-repository) 'forge--get-github-repository/gitea-fix)
 
 (provide 'gitea-forge)
 
