@@ -865,10 +865,10 @@ is met."
             (forge--pull-topic repo topic)
           (forge-pull))))))
 
-(defun forge-topic-toggle-draft/gitea-fix ()
-  "Trigger `forge--set-topic-draft' event, when change draft state."
+(defun forge-topic-toggle-draft/gitea-fix (state)
+  "Trigger `forge--set-topic-draft' event, when change draft STATE."
   (when-let ((pullreq (forge-current-pullreq)))
-    (forge--set-topic-draft (forge-get-repository :tracked?) pullreq (oref pullreq draft-p))))
+    (forge--set-topic-draft (forge-get-repository :tracked?) pullreq state)))
 (add-function :after (symbol-function 'forge-topic-toggle-draft) 'forge-topic-toggle-draft/gitea-fix)
 
 (provide 'gitea-forge)
