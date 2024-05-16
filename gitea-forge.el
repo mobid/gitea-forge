@@ -365,10 +365,14 @@
         (forge--set-id-slot repo pullreq 'assignees .assignees)
 
         (forge--set-id-slot repo pullreq 'review-requests
-                            (mapcan (lambda (review)
-                                      (when (string= "REQUEST_REVIEW" (alist-get 'state review))
-                                        (list (alist-get 'user review))))
-                                    .reviews))
+                            (cl-remove-duplicates
+                             (mapcan (lambda (review)
+                                       ;; Only commenting persons are omitted:
+                                       (when (member (alist-get 'state review) '("REQUEST_REVIEW" "APPROVED" "REQUEST_CHANGES"))
+                                         (list (alist-get 'user review))))
+                                     .reviews)
+                             :key (lambda (it) (alist-get 'login it))
+                             :test #'string=))
         (let ((reviews (mapcan (lambda (review)
                                  (unless (string-empty-p (alist-get 'body review))
                                    (list review)))
