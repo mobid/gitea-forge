@@ -606,7 +606,7 @@
                                               (open   "open"))))
 
 (cl-defmethod forge--set-topic-review-requests ((_repo forge-gitea-repository) topic reviewers)
-  (let ((value (mapcar #'car (closql--iref topic 'review-requests))))
+  (let ((value (mapcar #'car (oref topic review-requests))))
     (when-let ((add (cl-set-difference reviewers value :test #'equal)))
       (forge--gtea-post topic "repos/:owner/:repo/pulls/:number/requested_reviewers"
         `((reviewers . ,add))))
