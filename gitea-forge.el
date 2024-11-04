@@ -242,7 +242,9 @@
         (oset issue updated      .updated_at)
         (oset issue closed       (or .closed_at (and (equal .state "closed") 1)))
         (oset issue locked-p     .is_locked)
-        (oset issue milestone    .milestone.title)
+        (oset issue milestone    (and .milestone.id
+                                      (forge--object-id (oref repo id)
+                                                        .milestone.id)))
         (oset issue labels       (mapcar (lambda (label)
                                            (forge--object-id (oref repo id) (cdr (assoc 'id label))))
                                          .labels))
