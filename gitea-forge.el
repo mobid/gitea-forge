@@ -289,6 +289,8 @@
                                                (forge--update-pullreq repo (cadr data))
                                                (when callback
                                                  (funcall callback))))))
+        (when (eq 'errors (caar data))
+          (error "404"))
         (funcall cb cb (list data)))
     (error
      (let ((data (forge--gtea-get topic "repos/:owner/:repo/issues/:number"))
