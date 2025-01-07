@@ -907,6 +907,19 @@ is met."
   (forge-gitea-repository-p (forge-get-repository :stub?)))
 (add-function :before-until (symbol-function 'forge--get-github-repository) 'forge--get-github-repository/gitea-fix)
 
+(add-function :filter-return
+              (symbol-function #'closql-reload)
+              (defun closql-reload/gitea-fix (topic)
+                "Order posts by date before display.
+
+Otherwise they are sorted by id, which are two different sequences for
+review comments and normal comments."
+                (when forge-buffer-topic
+                  (sort (oref topic posts)
+                        (lambda (a b)
+                          (not (string> (oref a updated) (oref b updated))))))
+                topic))
+
 (provide 'gitea-forge)
 
 ;; Local Variables:
