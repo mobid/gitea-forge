@@ -95,7 +95,8 @@
 (cl-defmethod forge--update-repository ((repo forge-gitea-repository) data)
   (let-alist data
     (oset repo created        .created_at)
-    (oset repo updated        .updated_at)
+    ;; Use "now", because, project .updated_at does not take comments into account.
+    (oset repo updated        (format-time-string "%FT%T%:z"))
     (oset repo pushed         nil)
     (oset repo parent         .parent.full_name)
     (oset repo description    .description)
@@ -202,10 +203,8 @@
     (forge--gtea-get repo "repos/:owner/:repo/issues"
       `((limit . ,forge--gtea-batch-size)
         (type . "issues")
-        (state . "all")
-        ,@(and-let* ((after (or since (oref repo issues-until))))
-            `((updated_after . ,after))))
-      :unpaginate t
+        (since . ,since))
+      ;; ^ sorted by recent-update by default
       :callback (lambda (value _headers _status _req)
                   (if since
                       (funcall cb cb value)
@@ -253,27 +252,36 @@
         (unless (magit-get-boolean "forge.omitExpensive")
           (forge--set-id-slot repo issue 'assignees .assignees)
           (forge--set-id-slot repo issue 'labels .labels))
-        (dolist (comment .notes)
-          (let-alist comment
-            (closql-insert
-             (forge-db)
-             (forge-issue-post
-              :id      (forge--object-id issue-id .id)
-              :issue    issue-id
-              :number  .id
-              :author  .user.login
-              :created .created_at
-              :updated .updated_at
-              :body (let ((body (forge--sanitize-string .body))
-                          (hunk .diff_hunk))
-                      (if (not hunk)
-                          body
-                        (concat "```diff\n"
-                                (string-trim hunk)
-                                "\n```\n--\n"
-                                body))))
-             t)))
-        (forge--update-status repo issue data bump initial-pull)
+        (let ((last-comment-date (caar (forge-sql [ :select [updated] :from pullreq-post
+                                                    :where (= pullreq $s1)
+                                                    :order-by updated :desc
+                                                    :limit 1]
+                                                  issue-id)))
+              (new-comment nil))
+          (dolist (comment .notes)
+            (let-alist comment
+              (setq new-comment (or new-comment
+                                    (not last-comment-date)
+                                    (string> (or .updated_at .created_at) last-comment-date)))
+              (closql-insert
+               (forge-db)
+               (forge-issue-post
+                :id      (forge--object-id issue-id .id)
+                :issue    issue-id
+                :number  .id
+                :author  .user.login
+                :created .created_at
+                :updated .updated_at
+                :body (let ((body (forge--sanitize-string .body))
+                            (hunk .diff_hunk))
+                        (if (not hunk)
+                            body
+                          (concat "```diff\n"
+                                  (string-trim hunk)
+                                  "\n```\n--\n"
+                                  body))))
+               t)))
+          (forge--update-status repo issue data bump initial-pull new-comment))
         issue))))
 
 (cl-defmethod forge--pull-topic ((repo forge-gitea-repository)
@@ -306,8 +314,7 @@
 ;;;; Pull requests
 
 (cl-defmethod forge--fetch-pullreqs ((repo forge-gitea-repository) callback since)
-  (let ((cb (forge--gtea-fetch-topics-cb 'pullreqs repo callback))
-        (since (and since (date-to-time since))))
+  (let ((cb (forge--gtea-fetch-topics-cb 'pullreqs repo callback)))
     (forge--msg repo t nil "Pulling REPO PRs")
     (forge--gtea-get* repo "repos/:owner/:repo/pulls"
       `((limit . ,forge--gtea-batch-size)
@@ -318,7 +325,8 @@
                     (funcall callback callback (cons 'pullreqs value))))
       :while (lambda (res)
                (let-alist res
-                 (or (not since) (time-less-p since (date-to-time .updated_at))))))))
+                 (or (not since)
+                     (string> .updated_at since)))))))
 
 (cl-defmethod forge--fetch-pullreq-posts ((repo forge-gitea-repository) cur cb)
   (let-alist (car cur)
@@ -383,9 +391,18 @@
                                .reviews))
               (review-notes (mapcan (lambda (review)
                                       (alist-get 'notes review))
-                                    .reviews)))
+                                    .reviews))
+              (last-comment-date (caar (forge-sql [ :select [updated] :from pullreq-post
+                                                    :where (= pullreq $s1)
+                                                    :order-by updated :desc
+                                                    :limit 1]
+                                                  pullreq-id)))
+              (new-comment nil))
           (dolist (comment (append .notes reviews review-notes))
             (let-alist comment
+              (setq new-comment (or new-comment
+                                    (not last-comment-date)
+                                    (string> (or .created_at .submitted_at) last-comment-date)))
               (closql-insert
                (forge-db)
                (forge-pullreq-post
@@ -403,8 +420,8 @@
                                   (string-trim hunk)
                                   "\n```\n--\n"
                                   body))))
-               t))))
-        (forge--update-status repo pullreq data bump initial-pull)
+               t)))
+          (forge--update-status repo pullreq data bump initial-pull new-comment))
         pullreq))))
 
 ;;;; Reviews:
@@ -609,10 +626,10 @@
 
 (cl-defmethod forge--set-topic-review-requests ((_repo forge-gitea-repository) topic reviewers)
   (let ((value (mapcar #'car (oref topic review-requests))))
-    (when-let ((add (cl-set-difference reviewers value :test #'equal)))
+    (when-let* ((add (cl-set-difference reviewers value :test #'equal)))
       (forge--gtea-post topic "repos/:owner/:repo/pulls/:number/requested_reviewers"
         `((reviewers . ,add))))
-    (when-let ((remove (cl-set-difference value reviewers :test #'equal)))
+    (when-let* ((remove (cl-set-difference value reviewers :test #'equal)))
       (forge--gtea-delete topic "repos/:owner/:repo/pulls/:number/requested_reviewers"
         `((reviewers . ,remove)))))
   (forge-pull))
@@ -648,13 +665,14 @@
           (string-join (cdr (seq-drop-while #'string-empty-p (string-split title " "))) " ")))))))
 
 (cl-defmethod forge--update-status ((repo forge-gitea-repository)
-                                    topic data bump initial-pull)
+                                    topic data bump initial-pull unread)
   (let-alist data
     (let ((updated (or .updated_at .created_at))
           (current-status (oref topic status)))
       (cond (initial-pull
              (oset topic status 'done))
-            ((null current-status)
+            ((or (null current-status)
+                 unread)
              (oset topic status 'unread))
             ((string> updated (oref topic updated))
              (oset topic status 'pending)))
@@ -671,17 +689,17 @@
                                            (_ (subclass forge-issue)))
   (and-let* ((files (magit-revision-files (oref repo default-branch))))
     (let ((case-fold-search t))
-      (if-let ((file (--first (string-match-p "\
+      (if-let* ((file (--first (string-match-p "\
 \\`\\(\\|docs/\\|\\.github/\\)issue_template\\(\\.[a-zA-Z0-9]+\\)?\\'" it)
-                              files)))
+                               files)))
           (list file)
         (setq files
               (--filter (string-match-p "\\`\\.github/ISSUE_TEMPLATE/[^/]*" it)
                         files))
-        (if-let ((conf (cl-find-if
-                        (lambda (f)
-                          (equal (file-name-nondirectory f) "config.yml"))
-                        files)))
+        (if-let* ((conf (cl-find-if
+                         (lambda (f)
+                           (equal (file-name-nondirectory f) "config.yml"))
+                         files)))
             (nconc (delete conf files)
                    (list conf))
           files)))))
@@ -690,9 +708,9 @@
                                            (_ (subclass forge-pullreq)))
   (and-let* ((files (magit-revision-files (oref repo default-branch))))
     (let ((case-fold-search t))
-      (if-let ((file (--first (string-match-p "\
+      (if-let* ((file (--first (string-match-p "\
 \\`\\(\\|docs/\\|\\.github/\\)pull_request_template\\(\\.[a-zA-Z0-9]+\\)?\\'" it)
-                              files)))
+                               files)))
           (list file)
         ;; Unlike for issues, the web interface does not support
         ;; multiple pull-request templates.  The API does though,
@@ -747,7 +765,7 @@ is met."
                        (progn
                          ;; Set next page to params:
                          (setq params
-	                       (if-let ((pair (assoc 'page params)))
+	                       (if-let* ((pair (assoc 'page params)))
 	                           (progn (setcdr pair page) params)
 	                         (cons `(page . ,page) params)))
                          (forge--msg nil nil nil "Fetch page %s" page)
@@ -845,7 +863,7 @@ is met."
 
 (add-function :before-until (symbol-function 'forge-pull-notifications)
               (defun forge--pull-notifications--gitea ()
-                (if-let ((repo (forge-get-repository :stub?)))
+                (if-let* ((repo (forge-get-repository :stub?)))
                     (let ((class (eieio-object-class repo)))
                       (when (eq class 'forge-gitea-repository)
                         (forge--pull-notifications class (oref repo githost))
@@ -880,7 +898,7 @@ is met."
 
 (defun forge-topic-toggle-draft/gitea-fix (state)
   "Trigger `forge--set-topic-draft' event, when change draft STATE."
-  (when-let ((pullreq (forge-current-pullreq)))
+  (when-let* ((pullreq (forge-current-pullreq)))
     (forge--set-topic-draft (forge-get-repository :tracked?) pullreq state)))
 (add-function :after (symbol-function 'forge-topic-toggle-draft) 'forge-topic-toggle-draft/gitea-fix)
 
