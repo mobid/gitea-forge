@@ -916,8 +916,10 @@ Otherwise they are sorted by id, which are two different sequences for
 review comments and normal comments."
                 (when forge-buffer-topic
                   (sort (oref topic posts)
-                        (lambda (a b)
-                          (not (string> (oref a updated) (oref b updated))))))
+                        :key (lambda (it)
+                               (oref it updated))
+                        :lessp #'string<
+                        :in-place t))
                 topic))
 
 (provide 'gitea-forge)
