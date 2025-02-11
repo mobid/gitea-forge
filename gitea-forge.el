@@ -250,8 +250,8 @@
         (oset issue body         (forge--sanitize-string .body))
 
         (unless (magit-get-boolean "forge.omitExpensive")
-          (forge--set-id-slot repo issue 'assignees .assignees)
-          (forge--set-id-slot repo issue 'labels .labels))
+          (forge--set-connections repo issue 'assignees .assignees)
+          (forge--set-connections repo issue 'labels .labels))
         (let ((last-comment-date (caar (forge-sql [ :select [updated] :from pullreq-post
                                                     :where (= pullreq $s1)
                                                     :order-by updated :desc
@@ -374,9 +374,9 @@
         (oset pullreq labels       (mapcar (lambda (label)
                                              (forge--object-id (oref repo id) (cdr (assoc 'id label))))
                                            .labels))
-        (forge--set-id-slot repo pullreq 'assignees .assignees)
+        (forge--set-connections repo pullreq 'assignees .assignees)
 
-        (forge--set-id-slot repo pullreq 'review-requests
+        (forge--set-connections repo pullreq 'review-requests
                             (cl-remove-duplicates
                              (mapcan (lambda (review)
                                        ;; Only commenting persons are omitted:
