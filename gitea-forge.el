@@ -628,10 +628,10 @@
   (let ((value (mapcar #'car (oref topic review-requests))))
     (when-let* ((add (cl-set-difference reviewers value :test #'equal)))
       (forge--gtea-post topic "repos/:owner/:repo/pulls/:number/requested_reviewers"
-        `((reviewers . ,add))))
+        `((reviewers . [,@add]))))
     (when-let* ((remove (cl-set-difference value reviewers :test #'equal)))
       (forge--gtea-delete topic "repos/:owner/:repo/pulls/:number/requested_reviewers"
-        `((reviewers . ,remove)))))
+        `((reviewers . [,@remove])))))
   (forge-pull))
 
 (cl-defmethod forge--set-topic-assignees ((repo forge-gitea-repository) topic assignees)
