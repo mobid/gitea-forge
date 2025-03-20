@@ -635,7 +635,7 @@
   (forge-pull))
 
 (cl-defmethod forge--set-topic-assignees ((repo forge-gitea-repository) topic assignees)
-  (forge--set-topic-field repo topic 'assignees (or assignees [])))
+  (forge--set-topic-field repo topic 'assignees (vconcat assignees)))
 
 (defun forge--gitea-map-logins (logins)
   (mapcan (lambda (user)
