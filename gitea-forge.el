@@ -28,6 +28,7 @@
 ;;; Code:
 
 (require 'gtea)
+(require 'dash)
 (require 'forge)
 (require 'forge-gitea)
 (require 'forge-issue)
