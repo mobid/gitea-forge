@@ -528,34 +528,31 @@
 ;;; Mutations:
 
 (cl-defmethod forge--submit-create-pullreq ((_ forge-gitea-repository) repo)
-  (let-alist (forge--topic-parse-buffer)
-    (when (and .yaml (local-variable-p 'forge-buffer-draft-p))
-      (user-error "Cannot use yaml frontmatter and set `%s' at the same time"
-                  'forge-buffer-draft-p))
-    (pcase-let* ((`(,base-remote . ,base-branch)
-                  (magit-split-branch-name forge--buffer-base-branch))
-                 (`(,head-remote . ,head-branch)
-                  (magit-split-branch-name forge--buffer-head-branch))
-                 (head-repo (forge-get-repository :stub head-remote))
-                 (url-mime-accept-string
-                  ;; Support draft pull-requests.
-                  "application/vnd.github.shadow-cat-preview+json"))
-      (forge--gtea-post repo "repos/:owner/:repo/pulls"
-        `((title . ,.title)
-          (body . ,.body)
-          (base . ,base-branch)
-          (head  . ,(if (equal head-remote base-remote)
-                        head-branch
-                      (concat (oref head-repo owner) ":"
-                              head-branch))))
-        :callback  (forge--post-submit-gitea-callback)
-        :errorback (forge--post-submit-errorback)))))
+  (pcase-let* ((`(,title . ,body) (forge--post-buffer-text))
+               (`(,base-remote . ,base-branch)
+                (magit-split-branch-name forge--buffer-base-branch))
+               (`(,head-remote . ,head-branch)
+                (magit-split-branch-name forge--buffer-head-branch))
+               (head-repo (forge-get-repository :stub head-remote))
+               (url-mime-accept-string
+                ;; Support draft pull-requests.
+                "application/vnd.github.shadow-cat-preview+json"))
+    (forge--gtea-post repo "repos/:owner/:repo/pulls"
+      `((title . ,title)
+        (body . ,body)
+        (base . ,base-branch)
+        (head  . ,(if (equal head-remote base-remote)
+                      head-branch
+                    (concat (oref head-repo owner) ":"
+                            head-branch))))
+      :callback  (forge--post-submit-gitea-callback)
+      :errorback (forge--post-submit-errorback))))
 
 (cl-defmethod forge--submit-create-issue ((_ forge-gitea-repository) repo)
-  (let-alist (forge--topic-parse-buffer)
+  (pcase-let* ((`(,title . ,body)  (forge--post-buffer-text)))
     (forge--gtea-post repo "repos/:owner/:repo/issues"
-      `((title       . , .title)
-        (description . , .body))
+      `((title       . ,title)
+        (description . ,body))
       :callback  (forge--post-submit-gitea-callback)
       :errorback (forge--post-submit-errorback))))
 
@@ -573,9 +570,9 @@
       (forge-issue   (forge--format-resource post "repos/:owner/:repo/issues/:number"))
       (forge-post    (forge--format-resource post "repos/:owner/:repo/issues/comments/:number")))
     (if (cl-typep post 'forge-topic)
-        (let-alist (forge--topic-parse-buffer)
-          `((title . , .title)
-            (body  . , .body)))
+        (pcase-let* ((`(,title . ,body) (forge--post-buffer-text)))
+          `((title . ,title)
+            (body  . ,body)))
       `((body . ,(string-trim (buffer-string)))))
     :callback  (forge--post-submit-gitea-callback)
     :errorback (forge--post-submit-errorback)))
@@ -633,7 +630,7 @@
     (when-let* ((remove (cl-set-difference value reviewers :test #'equal)))
       (forge--gtea-delete topic "repos/:owner/:repo/pulls/:number/requested_reviewers"
         `((reviewers . [,@remove])))))
-  (forge-pull))
+  (forge--pull (forge-get-repository :tracked?)))
 
 (cl-defmethod forge--set-topic-assignees ((repo forge-gitea-repository) topic assignees)
   (forge--set-topic-field repo topic 'assignees (vconcat assignees)))
@@ -895,7 +892,7 @@ is met."
                           (forge-pullreq-p topic))
                      (oref repo selective-p)))
             (forge--pull-topic repo topic)
-          (forge-pull))))))
+          (forge--pull (forge-get-repository :tracked?)))))))
 
 (defun forge-topic-toggle-draft/gitea-fix (state)
   "Trigger `forge--set-topic-draft' event, when change draft STATE."
