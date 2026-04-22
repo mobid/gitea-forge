@@ -27,7 +27,7 @@
 
 ;;; Code:
 
-(require 'gtea)
+(require 'ghub)
 (require 'dash)
 (require 'forge)
 (require 'forge-gitea)
@@ -781,14 +781,15 @@ is met."
                                host
                                callback errorback)
   (declare (indent defun))
-  (gtea-get (if obj (forge--format-resource obj resource) resource)
-            params
-            :host (or host (oref (forge-get-repository obj) apihost))
-            :auth 'forge
-            :query query :payload payload :headers headers
-            :silent silent :unpaginate unpaginate
-            :noerror noerror :reader reader
-            :callback callback :errorback errorback))
+  (ghub-request "GET" (if obj (forge--format-resource obj resource) resource)
+    params
+    :forge 'gitea
+    :host (or host (oref (forge-get-repository obj) apihost))
+    :auth 'forge
+    :query query :payload payload :headers headers
+    :silent silent :unpaginate unpaginate
+    :noerror noerror :reader reader
+    :callback callback :errorback errorback))
 
 (cl-defun forge--gtea-put (obj resource
                                &optional params
@@ -797,14 +798,15 @@ is met."
                                host
                                callback errorback)
   (declare (indent defun))
-  (gtea-put (if obj (forge--format-resource obj resource) resource)
-            params
-            :host (or host (oref (forge-get-repository obj) apihost))
-            :auth 'forge
-            :query query :payload payload :headers headers
-            :silent silent :unpaginate unpaginate
-            :noerror noerror :reader reader
-            :callback callback :errorback errorback))
+  (ghub-request "PUT" (if obj (forge--format-resource obj resource) resource)
+    params
+    :forge 'gitea
+    :host (or host (oref (forge-get-repository obj) apihost))
+    :auth 'forge
+    :query query :payload payload :headers headers
+    :silent silent :unpaginate unpaginate
+    :noerror noerror :reader reader
+    :callback callback :errorback errorback))
 
 (cl-defun forge--gtea-post (obj resource
                                 &optional params
@@ -812,14 +814,15 @@ is met."
                                 silent unpaginate noerror reader
                                 host callback errorback)
   (declare (indent defun))
-  (gtea-post (forge--format-resource obj resource)
-             params
-             :host (or host (oref (forge-get-repository obj) apihost))
-             :auth 'forge
-             :query query :payload payload :headers headers
-             :silent silent :unpaginate unpaginate
-             :noerror noerror :reader reader
-             :callback callback :errorback errorback))
+  (ghub-request "POST" (forge--format-resource obj resource)
+    params
+    :forge 'gitea
+    :host (or host (oref (forge-get-repository obj) apihost))
+    :auth 'forge
+    :query query :payload payload :headers headers
+    :silent silent :unpaginate unpaginate
+    :noerror noerror :reader reader
+    :callback callback :errorback errorback))
 
 (cl-defun forge--gtea-patch (obj resource
                                  &optional params
@@ -827,14 +830,15 @@ is met."
                                  silent unpaginate noerror reader
                                  host callback errorback)
   (declare (indent defun))
-  (gtea-patch (if obj (forge--format-resource obj resource) resource)
-              params
-              :host (or host (oref (forge-get-repository obj) apihost))
-              :auth 'forge
-              :query query :payload payload :headers headers
-              :silent silent :unpaginate unpaginate
-              :noerror noerror :reader reader
-              :callback callback :errorback errorback))
+  (ghub-request "PATCH" (if obj (forge--format-resource obj resource) resource)
+    params
+    :forge 'gitea
+    :host (or host (oref (forge-get-repository obj) apihost))
+    :auth 'forge
+    :query query :payload payload :headers headers
+    :silent silent :unpaginate unpaginate
+    :noerror noerror :reader reader
+    :callback callback :errorback errorback))
 
 (cl-defun forge--gtea-delete (obj resource
                                   &optional params
