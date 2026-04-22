@@ -155,7 +155,9 @@
 (cl-defmethod forge--fetch-labels ((repo forge-gitea-repository) callback)
   (forge--gtea-get repo "repos/:owner/:repo/labels" nil
     :callback (lambda (value _headers _status _req)
-                (funcall callback callback (cons 'labels value)))))
+                (forge--gtea-get repo "orgs/:owner/labels" nil
+                  :callback (lambda (value2 _ _ _)
+                              (funcall callback callback (cons 'labels (append value value2))))))))
 
 (cl-defmethod forge--update-labels ((repo forge-gitea-repository) data)
   (oset repo labels
@@ -592,7 +594,7 @@
                                      (list .id))))
                                (cdr data))))
               (forge--gtea-put topic "repos/:owner/:repo/issues/:number/labels"
-                `((labels . ,(or ids [])))
+                `((labels . ,(vconcat ids)))
                 :callback cb))))))
 
 (cl-defmethod forge--set-topic-field
