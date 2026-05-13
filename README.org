@@ -16,4 +16,5 @@ machine git.example.com/api/v1 login username^forge password asdf1234
 You need to register self hosted Gitea into ~forge-alist~ variable.
 #+begin_src elisp
 (add-to-list 'forge-alist '("git.example.com" "git.example.com/api/v1" "git.example.com" forge-gitea-repository))
+(add-to-list 'ghub-default-host-alist '(gitea . "git.example.com"))
 #+end_src
