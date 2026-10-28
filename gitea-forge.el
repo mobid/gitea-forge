@@ -42,6 +42,22 @@
 
 ;;;; Repository
 
+(cl-defmethod forge--identify-repo ((repo (subclass forge-gitea-repository))
+                                    host owner name)
+  (pcase-let ((`(,_ ,apihost ,hostid ,_) (forge--get-forge-host host t)))
+    (let-alist (forge--gtea-get nil (format "api/v1/repos/%s/%s" owner name) nil :host host)
+      (and .id
+           (list (base64-encode-string
+                  (format "%s:%s" hostid
+                          (condition-case nil
+                              (base64-decode-string .repository.id)
+                            ;; For some repos this is not base64 encoded.
+                            (error .repository.id)))
+                  t)
+                 .owner.login
+                 .name
+                 .id)))))
+
 (cl-defmethod forge--pull ((repo forge-gitea-repository) &optional callback since)
   (cl-assert (not (and since (forge-get-repository repo :tracked?))))
   (setq since (or since (oref repo updated)))
@@ -846,7 +862,7 @@ is met."
                                   silent unpaginate noerror reader
                                   host callback errorback)
   (declare (indent defun))
-  (gtea-delete (forge--format-resource obj resource)
+  (ghub-delete (forge--format-resource obj resource)
                params
                :host (or host (oref (forge-get-repository obj) apihost))
                :auth 'forge
